@@ -1,4 +1,5 @@
 from db import get_connection
+from tabulate import tabulate
 from datetime import datetime
 
 
@@ -37,8 +38,20 @@ def view_available_events():
         if not events:
             print("No events available.")
             return
+        
+        # Prepare data for tabulate (list of lists)
+        headers = ["ID", "Name", "Date", "Venue"]
+        table_data = []
         for event in events:
-            print(f"ID: {event['event_id']}, Name: {event['event_name']}, Date: {event['event_date']}, Venue: {event['venue']}")
+            table_data.append([
+                event['event_id'],
+                event['event_name'],
+                event['event_date'],
+                event['venue']
+            ])
+
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+    
     except Exception as e:
         print(f"❌ Error fetching events: {e}")
     finally:

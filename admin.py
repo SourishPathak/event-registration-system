@@ -1,5 +1,5 @@
 from db import get_connection
-
+from tabulate import tabulate
 
 def create_event():
     print("\n--- Create New Event ---")
@@ -23,19 +23,30 @@ def create_event():
 
 
 def view_all_events():
-    print("\n--- All Events ---")
+    print("\n--- Available Events ---")
     conn = get_connection()
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT * FROM events")
         events = cursor.fetchall()
         if not events:
-            print("No events found.")
+            print("No events available.")
             return
+
+        headers = ["ID", "Name", "Date", "Venue"]
+        table_data = []
         for event in events:
-            print(f"ID: {event['event_id']}, Name: {event['event_name']}, Date: {event['event_date']}, Venue: {event['venue']}")
+            table_data.append([
+                event['event_id'],
+                event['event_name'],
+                event['event_date'],
+                event['venue']
+            ])
+
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+    
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Error fetching events: {e}")
     finally:
         conn.close()
 
@@ -55,13 +66,18 @@ def view_all_registrations():
         if not registrations:
             print("No registrations found.")
             return
-        for reg in registrations:
-            print(f"ID: {reg['registration_id']}, Student: {reg['student_name']}, Event: {reg['event_name']}, Date: {reg['registration_date']}")
+
+        table_data = [
+            [reg['registration_id'], reg['student_name'], reg['event_name'], reg['registration_date']]
+            for reg in registrations
+        ]
+        headers = ["Registration ID", "Student Name", "Event Name", "Registration Date"]
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print("❌ Invalid")
     finally:
         conn.close()
-
 
 def delete_event():
     event_id = input("\nEnter Event ID to delete: ")

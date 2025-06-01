@@ -16,8 +16,9 @@ def main():
             else:
                 print("❌ Invalid admin credentials.")
         elif choice == "2":
-            if student_login():
-                student_menu()
+            student_id = student_login()
+            if student_id is not None:
+                student_menu(student_id)
             else:
                 print("❌ Invalid student credentials.")
         elif choice == "4":
