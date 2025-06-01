@@ -1,35 +1,36 @@
+import os
+from db import get_connection
 from faker import Faker
 import random
-from db import get_connection
-from datetime import datetime, timedelta
-
-fake = Faker()
-
 
 def generate_fake_data():
-    print("🔄 Generating fake students and events...")
+    if os.path.exists("data_generated.flag"):
+        print("✅ Fake data has already been generated. Skipping.")
+        return
 
+    fake = Faker()
     conn = get_connection()
     cursor = conn.cursor()
 
-    try:
-        # Insert students
-        for _ in range(40):
-            name = fake.name()
-            class_ = random.randint(6, 12)
-            email = fake.email()
-            cursor.execute("INSERT INTO students (student_name, class, email) VALUES (%s, %s, %s)", (name, class_, email))
+    # Insert fake students
+    for _ in range(10):
+        name = fake.name()
+        email = fake.email()
+        password = "password123"
+        cursor.execute("INSERT INTO students (name, email, password) VALUES (%s, %s, %s)", (name, email, password))
 
-        # Insert events
-        for _ in range(20):
-            event_name = fake.catch_phrase()
-            event_date = fake.date_between(start_date='today', end_date='+30d')
-            venue = fake.city()
-            cursor.execute("INSERT INTO events (event_name, event_date, venue) VALUES (%s, %s, %s)", (event_name, event_date, venue))
+    # Insert fake events
+    for _ in range(5):
+        title = fake.catch_phrase()
+        description = fake.sentence()
+        date = fake.date_between(start_date='today', end_date='+30d')
+        cursor.execute("INSERT INTO events (title, description, date) VALUES (%s, %s, %s)", (title, description, date))
 
-        conn.commit()
-        print("✅ Fake data generated successfully.")
-    except Exception as e:
-        print(f"❌ Error generating data: {e}")
-    finally:
-        conn.close()
+    conn.commit()
+    conn.close()
+
+    # Create the marker file
+    with open("data_generated.flag", "w") as f:
+        f.write("Data generated")
+
+    print("✅ Fake data generated successfully.")

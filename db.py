@@ -3,7 +3,7 @@ import pymysql
 # Database connection info - update with your details
 DB_HOST = "localhost"
 DB_USER = "root"
-DB_PASSWORD = "your_password"
+DB_PASSWORD = "tiger123"
 DB_NAME = "event_system"
 
 def get_connection():

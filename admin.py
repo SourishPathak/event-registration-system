@@ -103,3 +103,20 @@ def admin_menu():
             break
         else:
             print("❗ Invalid choice.")
+
+def admin_login():
+    print("\n--- Admin Login ---")
+    username = input("Enter admin username: ")
+    password = input("Enter admin password: ")
+
+    if username == "admin" and password == "admin123":
+        return True
+    else:
+        return False
+
+def view_registered_students():
+    print("📋 Registered students would be listed here (connect to DB).")
+
+def view_events():
+    print("📋 Event list would be shown here (connect to DB).")
+
