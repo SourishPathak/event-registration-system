@@ -1,6 +1,6 @@
 import pymysql
 
-# Database connection info - update with your details
+
 DB_HOST = "localhost"
 DB_USER = "root"
 DB_PASSWORD = "tiger123"
