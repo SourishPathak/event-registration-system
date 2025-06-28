@@ -1,24 +1,17 @@
 @echo off
+echo ============================================
+echo     Welcome to the Event Registration System
+echo ============================================
 
-rem Request MySQL username
-set /p MYSQL_USER=Enter your MySQL username: 
+:: Set the full path to your Python interpreter
+set PYTHON_EXE="C:\Users\souri\AppData\Local\Programs\Python\Python313\python.exe"
 
-rem Request MySQL password (input visible)
-set /p MYSQL_PASS=Enter your MySQL password: 
-
-rem Set environment variables
-set MYSQL_USER=%MYSQL_USER%
-set MYSQL_PASS=%MYSQL_PASS%
-
+:: Step 1: Install required packages
 echo Installing required Python packages...
-pip install -r requirements.txt
+%PYTHON_EXE% -m pip install -r requirements.txt
 
-echo.
-echo Running faker_data.py to generate fake data...
-"C:\Users\souri\AppData\Local\Programs\Python\Python313\python.exe" faker_data.py
+:: Step 2: Launch the GUI application
+echo Launching the GUI application...
+start "" %PYTHON_EXE% main.py
 
-echo.
-echo Starting main.py...
-"C:\Users\souri\AppData\Local\Programs\Python\Python313\python.exe" main.py
-
-pause
+exit
