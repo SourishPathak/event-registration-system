@@ -1,200 +1,246 @@
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QPushButton, QWidget, QVBoxLayout, QLabel,
-    QLineEdit, QMessageBox, QComboBox, QTableWidget, QTableWidgetItem, QHBoxLayout
+    QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
+    QVBoxLayout, QTableWidget, QTableWidgetItem, QComboBox, QMessageBox,
+    QDateEdit, QDialog, QHBoxLayout
 )
-from PySide6.QtCore import Qt
-from db import get_connection
-from datetime import datetime
-
+from PySide6.QtCore import Qt, QDate
+from logic import (
+    authenticate_user, get_all_events, get_registered_events,
+    register_event, create_event, delete_event, get_all_registrations
+)
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Event Registration System")
-        self.setGeometry(100, 100, 600, 400)
+        self.setGeometry(100, 100, 600, 500)
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
 
-        self.layout = QVBoxLayout()
-        self.central_widget.setLayout(self.layout)
+        self.student_data = None
+        self.init_login_ui()
 
-        self.student_id_input = QLineEdit()
-        self.student_id_input.setPlaceholderText("Enter Student ID")
+    def set_new_layout(self, layout):
+        old_layout = self.central_widget.layout()
+        if old_layout:
+            QWidget().setLayout(old_layout)
+        self.central_widget.setLayout(layout)
 
-        self.admin_pwd_input = QLineEdit()
-        self.admin_pwd_input.setPlaceholderText("Enter Admin Password")
-        self.admin_pwd_input.setEchoMode(QLineEdit.Password)
+    # -------------------- LOGIN UI --------------------
+    def init_login_ui(self):
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignCenter)
 
-        self.student_btn = QPushButton("Login as Student")
-        self.admin_btn = QPushButton("Login as Admin")
+        title = QLabel("🔐 Event Registration System")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 22px; font-weight: bold;")
 
-        self.layout.addWidget(QLabel("Welcome to Event Registration System"))
-        self.layout.addWidget(self.student_id_input)
-        self.layout.addWidget(self.student_btn)
-        self.layout.addWidget(QLabel("OR"))
-        self.layout.addWidget(self.admin_pwd_input)
-        self.layout.addWidget(self.admin_btn)
+        self.username_input = QLineEdit()
+        self.username_input.setPlaceholderText("Username")
+        self.username_input.setFixedWidth(250)
 
-        self.student_btn.clicked.connect(self.login_student)
-        self.admin_btn.clicked.connect(self.login_admin)
+        self.password_input = QLineEdit()
+        self.password_input.setPlaceholderText("Password")
+        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.setFixedWidth(250)
 
-    def login_student(self):
-        student_id = self.student_id_input.text()
-        if not student_id.isdigit():
-            QMessageBox.warning(self, "Error", "Enter a valid numeric Student ID.")
+        login_btn = QPushButton("Login")
+        login_btn.setFixedWidth(120)
+        login_btn.clicked.connect(self.login)
+
+        layout.addWidget(title)
+        layout.addSpacing(10)
+        layout.addWidget(self.username_input, alignment=Qt.AlignCenter)
+        layout.addWidget(self.password_input, alignment=Qt.AlignCenter)
+        layout.addSpacing(10)
+        layout.addWidget(login_btn, alignment=Qt.AlignCenter)
+
+        self.set_new_layout(layout)
+
+    def login(self):
+        username = self.username_input.text().strip()
+        password = self.password_input.text().strip()
+
+        if not username or not password:
+            QMessageBox.warning(self, "Input Error", "Please enter both username and password.")
             return
 
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM students WHERE student_id = %s", (student_id,))
-        student = cursor.fetchone()
-        conn.close()
+        role, user_data = authenticate_user(username, password)
 
-        if student:
-            self.load_student_dashboard(int(student_id), student["student_name"])
+        if role == "admin":
+            self.init_admin_ui()
+        elif role == "student":
+            self.student_data = user_data
+            self.init_student_ui()
         else:
-            QMessageBox.warning(self, "Login Failed", "Student not found.")
+            QMessageBox.critical(self, "Login Failed", "❌ Invalid credentials.")
 
-    def login_admin(self):
-        pwd = self.admin_pwd_input.text()
-        if pwd == "admin123":
-            self.load_admin_dashboard()
-        else:
-            QMessageBox.critical(self, "Access Denied", "Incorrect admin password.")
+    # -------------------- STUDENT UI --------------------
+    def init_student_ui(self):
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignTop)
 
-    # -------------------- STUDENT DASHBOARD --------------------
+        welcome = QLabel(f"👋 Welcome, {self.student_data['student_name']}")
+        welcome.setAlignment(Qt.AlignCenter)
+        welcome.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(welcome)
 
-    def load_student_dashboard(self, student_id, student_name):
-        self.clear_layout()
+        self.event_list = QComboBox()
+        self.update_event_list()
+        layout.addWidget(self.event_list)
 
-        self.layout.addWidget(QLabel(f"👋 Welcome, {student_name}"))
+        register_btn = QPushButton("✅ Register for Selected Event")
+        register_btn.clicked.connect(self.register_for_selected_event)
+        layout.addWidget(register_btn)
 
-        self.event_table = QTableWidget()
-        self.event_table.setColumnCount(4)
-        self.event_table.setHorizontalHeaderLabels(["ID", "Name", "Date", "Venue"])
+        view_registered_btn = QPushButton("📋 View Registered Events")
+        view_registered_btn.clicked.connect(self.show_registered_events)
+        layout.addWidget(view_registered_btn)
 
-        self.load_events()
+        logout_btn = QPushButton("🔓 Logout")
+        logout_btn.clicked.connect(self.init_login_ui)
+        layout.addWidget(logout_btn)
 
-        self.layout.addWidget(self.event_table)
+        self.set_new_layout(layout)
 
-        register_btn = QPushButton("Register for Selected Event")
-        register_btn.clicked.connect(lambda: self.register_for_event(student_id))
-        self.layout.addWidget(register_btn)
+    def update_event_list(self):
+        self.event_list.clear()
+        events = get_all_events()
+        for event in events:
+            self.event_list.addItem(
+                f"{event['event_name']} on {event['event_date']} at {event['venue']}",
+                event['event_id']
+            )
 
-    def load_events(self):
-        self.event_table.setRowCount(0)
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM events")
-        events = cursor.fetchall()
-        conn.close()
+    def register_for_selected_event(self):
+        selected_index = self.event_list.currentIndex()
+        if selected_index == -1:
+            return
+        event_id = self.event_list.itemData(selected_index)
+        msg = register_event(self.student_data['student_id'], event_id)
+        QMessageBox.information(self, "Registration", msg)
+
+    def show_registered_events(self):
+        events = get_registered_events(self.student_data['student_id'])
+        if not events:
+            QMessageBox.information(self, "Registered Events", "No events registered.")
+            return
+
+        table = QTableWidget(len(events), 3)
+        table.setHorizontalHeaderLabels(["Event Name", "Date", "Venue"])
 
         for row, event in enumerate(events):
-            self.event_table.insertRow(row)
-            self.event_table.setItem(row, 0, QTableWidgetItem(str(event["event_id"])))
-            self.event_table.setItem(row, 1, QTableWidgetItem(event["event_name"]))
-            self.event_table.setItem(row, 2, QTableWidgetItem(str(event["event_date"])))
-            self.event_table.setItem(row, 3, QTableWidgetItem(event["venue"]))
+            table.setItem(row, 0, QTableWidgetItem(event['event_name']))
+            table.setItem(row, 1, QTableWidgetItem(str(event['event_date'])))
+            table.setItem(row, 2, QTableWidgetItem(event['venue']))
 
-    def register_for_event(self, student_id):
-        selected_row = self.event_table.currentRow()
-        if selected_row == -1:
-            QMessageBox.warning(self, "No Selection", "Select an event to register.")
-            return
+        self.show_table_dialog("📋 Registered Events", table)
 
-        event_id = int(self.event_table.item(selected_row, 0).text())
+    # -------------------- ADMIN UI --------------------
+    def init_admin_ui(self):
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignTop)
 
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM registrations WHERE student_id = %s AND event_id = %s", (student_id, event_id))
-        if cursor.fetchone():
-            QMessageBox.information(self, "Info", "Already registered for this event.")
-        else:
-            cursor.execute(
-                "INSERT INTO registrations (student_id, event_id, registration_date) VALUES (%s, %s, %s)",
-                (student_id, event_id, datetime.today().strftime('%Y-%m-%d'))
-            )
-            conn.commit()
-            QMessageBox.information(self, "Success", "Registration successful.")
-        conn.close()
+        title = QLabel("🛠️ Admin Panel")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(title)
 
-    # -------------------- ADMIN DASHBOARD --------------------
+        self.event_name = QLineEdit()
+        self.event_name.setPlaceholderText("Event Name")
 
-    def load_admin_dashboard(self):
-        self.clear_layout()
+        self.event_date = QDateEdit()
+        self.event_date.setCalendarPopup(True)
+        self.event_date.setDate(QDate.currentDate())
 
-        self.layout.addWidget(QLabel("🛠 Admin Dashboard"))
+        self.event_venue = QLineEdit()
+        self.event_venue.setPlaceholderText("Venue")
 
-        self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("Event Name")
-        self.date_input = QLineEdit()
-        self.date_input.setPlaceholderText("YYYY-MM-DD")
-        self.venue_input = QLineEdit()
-        self.venue_input.setPlaceholderText("Venue")
-
-        add_btn = QPushButton("Create Event")
+        add_btn = QPushButton("➕ Create Event")
         add_btn.clicked.connect(self.add_event)
 
-        self.layout.addWidget(self.name_input)
-        self.layout.addWidget(self.date_input)
-        self.layout.addWidget(self.venue_input)
-        self.layout.addWidget(add_btn)
+        layout.addWidget(self.event_name)
+        layout.addWidget(self.event_date)
+        layout.addWidget(self.event_venue)
+        layout.addWidget(add_btn)
 
-        self.refresh_btn = QPushButton("View All Events")
-        self.refresh_btn.clicked.connect(self.load_events_admin)
-        self.layout.addWidget(self.refresh_btn)
+        self.event_list_widget = QTableWidget()
+        self.event_list_widget.setColumnCount(3)
+        self.event_list_widget.setHorizontalHeaderLabels(["Event ID", "Event", "Date & Venue"])
+        self.refresh_event_list()
+        layout.addWidget(self.event_list_widget)
 
-        self.admin_event_table = QTableWidget()
-        self.admin_event_table.setColumnCount(4)
-        self.admin_event_table.setHorizontalHeaderLabels(["ID", "Name", "Date", "Venue"])
-        self.layout.addWidget(self.admin_event_table)
-        delete_btn = QPushButton("Delete Selected Event")
-        delete_btn.clicked.connect(self.delete_event)
-        self.stack_layout.addWidget(delete_btn)
+        del_btn = QPushButton("🗑️ Delete Selected Event")
+        del_btn.clicked.connect(self.delete_selected_event)
+        layout.addWidget(del_btn)
 
-        self.refresh_events()
-        logout_btn = QPushButton("Logout")
-        logout_btn.clicked.connect(self.login_screen)
-        self.stack_layout.addWidget(logout_btn)
+        view_regs_btn = QPushButton("📋 View All Registrations")
+        view_regs_btn.clicked.connect(self.show_all_registrations)
+        layout.addWidget(view_regs_btn)
+
+        logout_btn = QPushButton("🔓 Logout")
+        logout_btn.clicked.connect(self.init_login_ui)
+        layout.addWidget(logout_btn)
+
+        self.set_new_layout(layout)
+
+    def refresh_event_list(self):
+        events = get_all_events()
+        self.event_list_widget.setRowCount(len(events))
+
+        for row, e in enumerate(events):
+            self.event_list_widget.setItem(row, 0, QTableWidgetItem(str(e['event_id'])))
+            self.event_list_widget.setItem(row, 1, QTableWidgetItem(e['event_name']))
+            self.event_list_widget.setItem(row, 2, QTableWidgetItem(f"{e['event_date']} at {e['venue']}"))
 
     def add_event(self):
-        name = self.name_input.text()
-        date = self.date_input.text()
-        venue = self.venue_input.text()
+        name = self.event_name.text().strip()
+        date = self.event_date.date().toString("yyyy-MM-dd")
+        venue = self.event_venue.text().strip()
 
-        if not name or not date or not venue:
-            QMessageBox.warning(self, "Input Error", "All fields are required.")
+        if name and venue:
+            create_event(name, date, venue)
+            self.refresh_event_list()
+            QMessageBox.information(self, "Success", "✅ Event created.")
+        else:
+            QMessageBox.warning(self, "Missing Info", "Please enter all fields.")
+
+    def delete_selected_event(self):
+        selected = self.event_list_widget.currentRow()
+        if selected >= 0:
+            event_id_item = self.event_list_widget.item(selected, 0)
+            if event_id_item:
+                delete_event(int(event_id_item.text()))
+                self.refresh_event_list()
+                QMessageBox.information(self, "Deleted", "🗑️ Event deleted.")
+
+    def show_all_registrations(self):
+        regs = get_all_registrations()
+        if not regs:
+            QMessageBox.information(self, "No Data", "No registrations found.")
             return
+        
+        table = QTableWidget(len(regs), 3)
+        table.setHorizontalHeaderLabels(["Student", "Event", "Date"])
 
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO events (event_name, event_date, venue) VALUES (%s, %s, %s)", (name, date, venue))
-        conn.commit()
-        conn.close()
+        for row, r in enumerate(regs):
+            table.setItem(row, 0, QTableWidgetItem(str(r['student_name'])))
+            table.setItem(row, 1, QTableWidgetItem(str(r['event_name'])))
+            table.setItem(row, 2, QTableWidgetItem(str(r['registration_date'])))
 
-        QMessageBox.information(self, "Success", "Event created.")
-        self.load_events_admin()
+        self.show_table_dialog("📋 All Registrations", table)
 
-    def load_events_admin(self):
-        self.admin_event_table.setRowCount(0)
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM events")
-        events = cursor.fetchall()
-        conn.close()
 
-        for row, event in enumerate(events):
-            self.admin_event_table.insertRow(row)
-            self.admin_event_table.setItem(row, 0, QTableWidgetItem(str(event["event_id"])))
-            self.admin_event_table.setItem(row, 1, QTableWidgetItem(event["event_name"]))
-            self.admin_event_table.setItem(row, 2, QTableWidgetItem(str(event["event_date"])))
-            self.admin_event_table.setItem(row, 3, QTableWidgetItem(event["venue"]))
-
-    # -------------------- UTILITY --------------------
-
-    def clear_layout(self):
-        while self.layout.count():
-            child = self.layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+    # -------------------- Reusable Table Dialog --------------------
+    def show_table_dialog(self, title, table_widget):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        layout = QVBoxLayout()
+        layout.addWidget(table_widget)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.close)
+        layout.addWidget(close_btn, alignment=Qt.AlignRight)
+        dialog.setLayout(layout)
+        dialog.resize(500, 300)
+        dialog.exec()

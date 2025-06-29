@@ -1,7 +1,8 @@
 from PySide6.QtWidgets import QApplication
 from gui_app import MainWindow
+import sys
 
-app = QApplication([])
+app = QApplication(sys.argv)
 window = MainWindow()
 window.show()
-app.exec()
+sys.exit(app.exec())
